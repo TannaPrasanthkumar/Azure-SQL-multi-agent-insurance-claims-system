@@ -1,0 +1,19 @@
+semantic-kernel
+openai
+azure-identity
+azure-storage-blob
+azure-search-documents
+# azure-ai-formrecognizer  # optional - keep commented if you don't need it
+scikit-learn
+xgboost
+imbalanced-learn
+pandas
+numpy
+sentence-transformers  # for embeddings (if not using Azure embeddings)
+# faiss-cpu  # note: faiss-cpu typically isn't available on Windows via pip; use conda or skip on Windows
+qdrant-client
+chromadb
+python-dotenv
+fastapi
+streamlit
+pyodbc  # Azure SQL Database connector

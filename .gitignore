@@ -1,0 +1,82 @@
+# Environment Variables
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+myenv/
+venv/
+env/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+logs/
+*.out
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Azure & Credentials
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Application Specific
+review_queue.json
+review_history.json
+audit-logs/
+*.csv
+!Policy_data.csv
+
+# Backup Files
+*_backup.py
+*.bak
+
+# OS
+Thumbs.db
+desktop.ini
