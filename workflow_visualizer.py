@@ -1097,13 +1097,11 @@ def main():
                 has_review_decision = fraud_review_result.get('decision') is not None
                 print(f"✅ Human review decision found: {fraud_review_result.get('decision')}")
             
-            # If human review completed, show completing workflow then hide it
+            # If human review completed, show completed workflow (keep visible)
             if has_review_decision:
-                workflow_placeholder = st.empty()
-                with workflow_placeholder.container():
-                    show_workflow_progress(step=8)  # Show all complete
-                time.sleep(0.8)  # Brief pause to show completion
-                workflow_placeholder.empty()  # Hide workflow
+                st.markdown("### 🔄 Workflow Execution Flow")
+                show_workflow_progress(step=8)  # Show all completed + Orchestrator active
+                st.markdown("---")
             
             # Results will be rendered below at line ~2520
             # DO NOT add pass or return here - let execution continue
@@ -1114,9 +1112,8 @@ def main():
             print(f"✅ Fraud detected - showing workflow at step 6")
             
             # Show workflow progress at step 6 (awaiting human review - active/orange)
-            workflow_placeholder = st.empty()
-            with workflow_placeholder.container():
-                show_workflow_progress(step=6)
+            st.markdown("### 🔄 Workflow Execution Flow")
+            show_workflow_progress(step=6)
             
             st.markdown("---")
             st.warning("⚠️ **Fraud Detected - Awaiting Human Review**")
@@ -2019,67 +2016,42 @@ The claim will be added to the Human Review Queue for processing.
                         fraud_agent = FraudDetectorAgent()
                         claim_info = extracted_data.get('claim_info', {})
 
+                        # Debug: Print claim_info to see what we're working with
+                        print(f"\n🔍 DEBUG - Claim Info received:")
+                        print(f"   Policy Type: {claim_info.get('policy_type')} (type: {type(claim_info.get('policy_type'))})")
+                        print(f"   Accident Area: {claim_info.get('accident_area')} (type: {type(claim_info.get('accident_area'))})")
+                        print(f"   Sex: {claim_info.get('sex')} (type: {type(claim_info.get('sex'))})")
+                        print(f"   Police Report: {claim_info.get('police_report_filed')} (type: {type(claim_info.get('police_report_filed'))})")
+                        print(f"   Driver Rating: {claim_info.get('driver_rating')}")
+                        print(f"   Age: {claim_info.get('age')}")
+                        print(f"   Claim Amount: {claim_info.get('claim_amount')}")
                     
                         # Prepare fraud detection data
-                        # Pass strings for categorical fields - fraud_detector_agent will handle conversion
-                        policy_type_val = claim_info.get('policy_type', 1)
-                        accident_area_val = claim_info.get('accident_area', 1)
-                        sex_val = claim_info.get('sex', 1)
-                        police_report_val = claim_info.get('police_report_filed', 0)
-
-                    
-                        # Convert to int only if they're already numeric, otherwise keep as string
-                        if isinstance(policy_type_val, str):
-                            policy_type_val = policy_type_val  # Keep string
-                        else:
-                            policy_type_val = int(policy_type_val)
-
-                
-                        if isinstance(accident_area_val, str):
-                            accident_area_val = accident_area_val
-                        else:
-                            accident_area_val = int(accident_area_val)
-
-                
-                        if isinstance(sex_val, str):
-                            sex_val = sex_val
-                        else:
-                            sex_val = int(sex_val)
-
-                
-                        if isinstance(police_report_val, str):
-                            police_report_val = police_report_val
-                        else:
-                            police_report_val = int(police_report_val)
-
-                    
+                        # IMPORTANT: Azure ML expects NUMERIC values for categorical fields
+                        # fraud_detector_agent.py will handle string to number conversion
                         fraud_data = {
-                            "DriverRating": int(claim_info.get('driver_rating', 1)),
-                            "Age": int(claim_info.get('age', 30)),
-                            "PoliceReportFiled": police_report_val,
-                            "WeekOfMonthClaimed": int(claim_info.get('week_of_month_claimed', 1)),
-                            "PolicyType": policy_type_val,
-                            "WeekOfMonth": int(claim_info.get('week_of_month', 1)),
-                            "AccidentArea": accident_area_val,
-                            "Sex": sex_val,
-                            "Deductible": int(claim_info.get('deductible', 500))
+                            "DriverRating": claim_info.get('driver_rating', 1),
+                            "Age": claim_info.get('age', 30),
+                            "PoliceReportFiled": claim_info.get('police_report_filed', 0),
+                            "WeekOfMonthClaimed": claim_info.get('week_of_month_claimed', 1),
+                            "PolicyType": claim_info.get('policy_type', 1),
+                            "WeekOfMonth": claim_info.get('week_of_month', 1),
+                            "AccidentArea": claim_info.get('accident_area', 1),
+                            "Sex": claim_info.get('sex', 1),
+                            "Deductible": claim_info.get('deductible', 500)
                         }
 
                     
                         # Debug: Show fraud detection inputs
-                        print(f"\n🔍 FRAUD DETECTION INPUT VALUES:")
-                        print(f"   DriverRating: {fraud_data['DriverRating']}")
-                        print(f"   Age: {fraud_data['Age']}")
-                        print(f"   PoliceReportFiled: {fraud_data['PoliceReportFiled']}")
-                        print(f"   WeekOfMonthClaimed: {fraud_data['WeekOfMonthClaimed']}")
-                        print(f"   PolicyType: {fraud_data['PolicyType']}")
-                        print(f"   WeekOfMonth: {fraud_data['WeekOfMonth']}")
-                        print(f"   AccidentArea: {fraud_data['AccidentArea']}")
-                        print(f"   Sex: {fraud_data['Sex']}")
-                        print(f"   Deductible: {fraud_data['Deductible']}")
+                        print(f"\n🔍 DEBUG - Fraud data being sent to ML:")
+                        print(json.dumps(fraud_data, indent=2))
 
                     
                         fraud_result = fraud_agent.detect_fraud(fraud_data)
+                        
+                        print(f"\n🔍 DEBUG - Fraud result received:")
+                        print(json.dumps(fraud_result, indent=2))
+                        
                         results['fraud_analysis'] = fraud_result
 
                     
@@ -2523,9 +2495,6 @@ The claim has been added to the Human Review Queue with HIGH priority.
         
         # Display final results and agent summary after completion
         if st.session_state.get('processing_completed'):
-            st.markdown("---")
-            st.markdown("### 📊 Final Processing Results")
-            
             results = st.session_state.get('last_processing_results', {})
             
             # Get fraud detection status
@@ -2622,7 +2591,7 @@ The claim has been added to the Human Review Queue with HIGH priority.
             
             # Display complete processing results
             st.markdown("---")
-            st.markdown("### 📋 Processing Results")
+            #st.markdown("### 📋 Processing Results")
             
             # Get decision and confidence
             decision = "UNKNOWN"
@@ -2643,13 +2612,17 @@ The claim has been added to the Human Review Queue with HIGH priority.
                 elif human_decision == "REJECT":
                     decision = "REJECTED_BY_HUMAN"
             
-            # If human review completed, briefly show workflow completion animation
-            if has_review_decision:
-                workflow_complete_placeholder = st.empty()
-                with workflow_complete_placeholder.container():
-                    show_workflow_progress(step=8)  # Show all complete
-                time.sleep(0.5)  # Brief pause to show completion
-                workflow_complete_placeholder.empty()  # Hide the workflow
+            # Show final workflow visualization for completed processing
+            if not is_fraud_detected or has_review_decision:
+                st.markdown("### 🔄 Workflow Execution Flow")
+                if has_review_decision or is_fraud_detected:
+                    show_workflow_progress(step=8)  # All completed
+                else:
+                    show_workflow_progress(step=7)  # Normal completion (no fraud)
+                st.markdown("---")
+            
+            # Display Processing Results header
+            st.markdown("### 📊 Final Processing Results")
             
             # Display Final Decision Banner
             col1, col2 = st.columns([1, 2])
@@ -2742,7 +2715,7 @@ The claim has been added to the Human Review Queue with HIGH priority.
                 if results.get('extracted_data'):
                     claim_info = results['extracted_data'].get('claim_info', {})
                     work_done = "Extracted claim data from PDF using Azure Document Intelligence OCR"
-                    output = f"Policy: {claim_info.get('policy_number', 'N/A')} | Amount: ${claim_info.get('claim_amount', '0')} | Pages: {results['extracted_data'].get('page_count', 0)}"
+                    output = f"Policy: {claim_info.get('policy_number', 'N/A')} | Name: {claim_info.get('policyholder_name', 'N/A')} | Amount: ${claim_info.get('claim_amount', '0')}"
                     agent_data.append(["📄 Document Reader Agent", work_done, output])
                 
                 # 2. AI Summary Agent
@@ -2753,10 +2726,11 @@ The claim has been added to the Human Review Queue with HIGH priority.
                 
                 # 3. Policy Validator Agent
                 if results.get('validation_result'):
-                    policy_info = results['validation_result'].get('policy_data', {})
+                    # Get policy data from validation nested structure
+                    validation = results['validation_result'].get('validation', {})
+                    policy_info = validation.get('policy_data', {})
                     work_done = "Validated policy in Azure SQL Database"
-                    policy_status = policy_info.get('policy_status', 'Unknown')
-                    output = f"Status: {policy_status.upper()} | Limit: ${policy_info.get('policy_limit', 0):,.0f} | Past Claims: ${policy_info.get('past_claims_amount', 0):,.0f}"
+                    output = f"Policy Limit: ${policy_info.get('policy_limit', 0):,.0f} | Past Claims Amount: ${policy_info.get('past_claims_amount', 0):,.0f}"
                     agent_data.append(["🗄️ Policy Validator Agent", work_done, output])
                 
                 # 4. Eligibility Agent
@@ -2807,15 +2781,15 @@ The claim has been added to the Human Review Queue with HIGH priority.
                     agent_data.append(["📧 Communication Agent", work_done, output])
                 elif comm_decision == "NOT ELIGIBLE" or (comm_decision == "FRAUD_DETECTED" and has_review_decision and fraud_review_result.get('decision') == "REJECT"):
                     work_done = "Sent rejection notification to policyholder"
-                    output = f"❌ Email sent | Policy: {current_policy_num} | Status: REJECTED"
+                    output = f"✅ Email sent | Policy: {current_policy_num} | Status: REJECTED"
                     agent_data.append(["📧 Communication Agent", work_done, output])
                 elif is_fraud_detected and not has_review_decision:
                     work_done = "Communication on hold - awaiting human review"
                     output = f"⏳ Status: PENDING | Waiting for review decision"
                     agent_data.append(["📧 Communication Agent", work_done, output])
                 else:
-                    work_done = "Prepared communication based on claim decision"
-                    output = f"Status: {comm_decision} | Ready to send notification"
+                    work_done = "Sent communication based on claim decision"
+                    output = f"✅ Email sent | Status: {comm_decision}"
                     agent_data.append(["📧 Communication Agent", work_done, output])
                 
                 # 8. Audit Agent

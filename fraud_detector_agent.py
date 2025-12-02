@@ -40,53 +40,71 @@ class FraudDetectorAgent:
             dict: Fraud detection result with prediction, probability, and risk level
         """
         try:
-            # Mapping for categorical features (numeric to string)
-            # Azure ML's scoring.py expects strings, not pre-encoded numbers
-            accident_area_map = {0: "Rural", 1: "Urban"}
-            sex_map = {0: "Female", 1: "Male"}
+            # IMPORTANT: Azure ML scoring.py expects NUMERIC values for categorical fields
+            # The label encoders on the server side will handle the encoding
+            # Mappings: string to numeric (reverse of what scoring.py has)
+            accident_area_map = {"Rural": 0, "Urban": 1}
+            sex_map = {"Female": 0, "Male": 1}
             policy_type_map = {
-                0: "Sedan - All Perils",
-                1: "Sedan - Collision", 
-                2: "Sedan - Liability",
-                3: "Sport - All Perils",
-                4: "Sport - Collision",
-                5: "Sport - Liability",
-                6: "Utility - All Perils",
-                7: "Utility - Collision",
-                8: "Utility - Liability"
+                "Sedan - All Perils": 0,
+                "Sedan - Collision": 1, 
+                "Sedan - Liability": 2,
+                "Sport - All Perils": 3,
+                "Sport - Collision": 4,
+                "Sport - Liability": 5,
+                "Utility - All Perils": 6,
+                "Utility - Collision": 7,
+                "Utility - Liability": 8
             }
-            police_report_map = {0: "No", 1: "Yes"}
+            police_report_map = {"No": 0, "Yes": 1}
             
             # Get values from claim_data
             accident_area = claim_data.get("AccidentArea", 1)
             sex = claim_data.get("Sex", 1)
-            policy_type = claim_data.get("PolicyType", 1)
+            policy_type = claim_data.get("PolicyType", 2)  # Default to Sedan - Liability
             police_report = claim_data.get("PoliceReportFiled", 0)
             
-            # Convert to strings if they're numeric
-            if isinstance(accident_area, (int, float)):
-                accident_area = accident_area_map.get(int(accident_area), "Urban")
-            if isinstance(sex, (int, float)):
-                sex = sex_map.get(int(sex), "Male")
-            if isinstance(policy_type, (int, float)):
-                policy_type = policy_type_map.get(int(policy_type), "Sedan - Liability")
-            if isinstance(police_report, (int, float)):
-                police_report = police_report_map.get(int(police_report), "No")
+            # Convert strings to numeric if needed
+            if isinstance(accident_area, str):
+                accident_area = accident_area_map.get(accident_area, 1)  # Default to Urban
+            else:
+                accident_area = int(accident_area)
+                
+            if isinstance(sex, str):
+                sex = sex_map.get(sex, 1)  # Default to Male
+            else:
+                sex = int(sex)
+                
+            if isinstance(policy_type, str):
+                policy_type = policy_type_map.get(policy_type, 2)  # Default to Sedan - Liability
+            else:
+                policy_type = int(policy_type)
+                
+            if isinstance(police_report, str):
+                police_report = police_report_map.get(police_report, 0)  # Default to No
+            else:
+                police_report = int(police_report)
             
             # Prepare required fields for model
-            # Send categorical values as STRINGS, not encoded numbers
-            # Azure ML's scoring.py will encode them using label_encoders
-            features = {
-                "DriverRating": claim_data.get("DriverRating", 1),
-                "Age": claim_data.get("Age", 30),
-                "WeekOfMonthClaimed": claim_data.get("WeekOfMonthClaimed", 1),
-                "WeekOfMonth": claim_data.get("WeekOfMonth", 1),
-                "Deductible": claim_data.get("Deductible", 500),
-                "AccidentArea": accident_area,  # String: "Urban" or "Rural"
-                "Sex": sex,  # String: "Male" or "Female"
-                "PolicyType": policy_type,  # String: "Sedan - All Perils", etc.
-                "PoliceReportFiled": police_report  # String: "Yes" or "No"
+            # Send categorical values as NUMBERS (0, 1, 2, etc.)
+            # Azure ML's scoring.py expects numeric values
+            payload = {
+                "DriverRating": int(claim_data.get("DriverRating", 1)),
+                "Age": int(claim_data.get("Age", 30)),
+                "WeekOfMonthClaimed": int(claim_data.get("WeekOfMonthClaimed", 1)),
+                "WeekOfMonth": int(claim_data.get("WeekOfMonth", 1)),
+                "Deductible": int(claim_data.get("Deductible", 500)),
+                "AccidentArea": accident_area,  # Numeric: 0 (Rural) or 1 (Urban)
+                "Sex": sex,  # Numeric: 0 (Female) or 1 (Male)
+                "PolicyType": policy_type,  # Numeric: 0-8
+                "PoliceReportFiled": police_report  # Numeric: 0 (No) or 1 (Yes)
             }
+            
+            # DEBUG: Print what we're sending to ML
+            print("\n" + "="*70)
+            print("🚀 FRAUD DETECTOR - SENDING TO AZURE ML:")
+            print(json.dumps(payload, indent=2))
+            print("="*70 + "\n")
             
             # Prepare headers
             headers = {
@@ -97,12 +115,14 @@ class FraudDetectorAgent:
             # Call Azure ML endpoint
             response = requests.post(
                 self.scoring_uri,
-                data=json.dumps(features),
+                data=json.dumps(payload),
                 headers=headers,
                 timeout=30
             )
             
             if response.status_code != 200:
+                print(f"⚠️ Azure ML ERROR - Status {response.status_code}")
+                print(f"Response: {response.text}")
                 return {
                     "success": False,
                     "error": f"Azure ML endpoint returned status {response.status_code}",
@@ -114,9 +134,30 @@ class FraudDetectorAgent:
             # Parse response
             result = response.json()
             
+            # DEBUG: Print raw ML response
+            print("\n" + "="*70)
+            print("📥 FRAUD DETECTOR - RAW AZURE ML RESPONSE:")
+            print(json.dumps(result, indent=2))
+            print("="*70 + "\n")
+            
             # Handle double-encoded JSON
             if isinstance(result, str):
                 result = json.loads(result)
+            
+            # Check for error in response
+            if "error" in result:
+                error_msg = result.get("error", "Unknown error")
+                print(f"⚠️ AZURE ML MODEL ERROR: {error_msg}")
+                return {
+                    "success": False,
+                    "error": f"Azure ML model error: {error_msg}",
+                    "fraud_prediction": 0,
+                    "fraud_probability": 0.0,
+                    "fraud_risk": "Error",
+                    "threshold_used": 0.5,
+                    "is_fraud": False,
+                    "message": f"Model error: {error_msg}"
+                }
             
             # Extract prediction details
             if "predictions" in result:
